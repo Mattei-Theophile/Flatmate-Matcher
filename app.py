@@ -5,18 +5,18 @@ import joblib
 import os
 
 # Page Config
-st.set_page_config(page_title="AI Housemate Matcher", page_icon="🏠", layout="wide")
+st.set_page_config(page_title="Flatmate Matcher", page_icon="🏠", layout="wide")
 
 
 # --- Load Models ---
 @st.cache_resource
 def load_models():
-    if not os.path.exists("kmeans_model.pkl"):
+    if not os.path.exists("models/kmeans_model.pkl"):
         return None, None, None
 
-    kmeans = joblib.load("kmeans_model.pkl")
-    scaler = joblib.load("scaler.pkl")
-    weights = joblib.load("weights.pkl")
+    kmeans = joblib.load("models/kmeans_model.pkl")
+    scaler = joblib.load("models/scaler.pkl")
+    weights = joblib.load("models/weights.pkl")
     return kmeans, scaler, weights
 
 
@@ -28,6 +28,12 @@ if "leaderboard" not in st.session_state:
 
 # --- Sidebar: Leaderboard ---
 with st.sidebar:
+    st.header("🏠 Flatmate Matcher")
+    st.subheader("Find your perfect flatmate!")
+    st.caption("The application uses AI to identify your personality type and compare your habits with others.")
+    st.caption("The result may contain errors, we aren't responsible for any mismatches.")
+    st.markdown("---")
+
     st.header("🏆 Leaderboard")
     st.caption("Most recent results")
 
@@ -66,18 +72,18 @@ def get_user_inputs(prefix=""):
 
         st.markdown("**Daily Habits**")
         fruits = st.slider("Fruits & Veggies (Servings)", 0, 5, 3, key=f"{prefix}fruits")
-        steps = st.number_input("Daily Steps", 0, 30000, 5000, key=f"{prefix}steps")
-        sleep = st.slider("Sleep Hours", 3, 12, 7, key=f"{prefix}sleep")
+        steps = st.number_input("Daily Steps", 1, 10, 5, key=f"{prefix}steps")
+        sleep = st.slider("Sleep Hours", 1, 10, 5, key=f"{prefix}sleep")
 
     with col2:
         st.markdown("**Psychology & Social**")
-        stress = st.slider("Daily Stress (1-5)", 1, 5, 3, key=f"{prefix}stress")
+        stress = st.slider("Daily Stress (0-5)", 0, 5, 3, key=f"{prefix}stress")
         social = st.slider("Social Connections (0-10)", 0, 10, 5, key=f"{prefix}social")
-        passion = st.slider("Time for Passion (Hrs)", 0, 10, 2, key=f"{prefix}passion")
+        passion = st.slider("Time for Passion (Hrs)", 0, 10, 5, key=f"{prefix}passion")
 
         with st.expander("Advanced Details"):
-            places = st.number_input("New Places Visited", 0, 50, 2, key=f"{prefix}places")
-            core_circle = st.number_input("Core Circle Size", 0, 20, 3, key=f"{prefix}core")
+            places = st.number_input("New Places Visited", 0, 10, 5, key=f"{prefix}places")
+            core_circle = st.number_input("Core Circle Size", 0, 10, 5, key=f"{prefix}core")
             support = st.slider("Supporting Others", 0, 10, 5, key=f"{prefix}support")
             donation = st.slider("Donation Freq", 0, 5, 1, key=f"{prefix}donate")
             shouting = st.slider("Daily Shouting", 0, 10, 1, key=f"{prefix}shout")
@@ -97,7 +103,7 @@ def process_data(inputs):
     Converts raw input dictionary into the weighted vector expected by the model.
     """
     # 1. Map Inputs
-    gender_val = 1 if inputs["gender"] == "Male" else 0
+    gender_val = 3 if inputs["gender"] == "Male" else 0
     age_map = {'Less than 20': 16, '21 to 35': 28, '36 to 50': 43, '51 or more': 70}
     age_val = age_map[inputs["age_cat"]]
     income_val = 2 if inputs["income"] == "Yes" else 1
@@ -127,7 +133,6 @@ def process_data(inputs):
 
 
 # --- Main App Structure ---
-st.title("🏠 AI Housemate Classifier & Comparator")
 
 if kmeans is None:
     st.error("❌ Model files not found! Please run training first.")
@@ -139,6 +144,9 @@ tab1, tab2 = st.tabs(["🔍 Find My Team", "🤝 Compare Two People"])
 # TAB 1: CLASSIFIER & CLUSTER SIMILARITY
 # ==========================================
 with tab1:
+    # Moved Title Inside Tab
+    st.title("Housemate Classifier")
+
     st.write("Classify yourself into a housemate personality type.")
 
     # 1. Collect Inputs
@@ -156,60 +164,62 @@ with tab1:
 
             # Calculate Percentages for ALL clusters
             distances = kmeans.transform(vector)[0]
+            # Inverse distance to get similarity
             similarity = 1 / (distances + 0.1)
             percentages = (similarity / np.sum(similarity)) * 100
             match_score = percentages[cluster]
 
-            # --- Display Winner ---
+            # --- RESULT CARD ---
             st.divider()
-            c1, c2 = st.columns([1, 2])
-            with c1:
-                st.success(f"### You are Cluster {cluster}")
-                st.metric("Main Match Confidence", f"{match_score:.1f}%")
 
-            with c2:
-                # Basic Chart
-                chart_data = pd.DataFrame({
-                    "Cluster": [f"Type {i}" for i in range(len(percentages))],
-                    "Probability": percentages
-                })
-                st.bar_chart(chart_data.set_index("Cluster"))
+            # Create a nice container "Div" for the results
+            with st.container(border=True):
+                # Header Section
+                st.markdown(f"### 🎯 Result: You belong to **Team {cluster + 1}**")
+                st.markdown(f"**Confidence Score:** {match_score:.1f}%")
+                st.progress(int(match_score))
 
-            # --- Similarity System (New Feature) ---
-            st.subheader("📊 Similarity with Other Clusters")
-            st.caption(
-                "While you belong to one team, you may share traits with others. Here is your affinity breakdown:")
+                st.divider()
 
-            # Create a clean display of similarities
-            cols = st.columns(len(percentages))
-            for i, p in enumerate(percentages):
-                with cols[i]:
-                    # Highlight the winner
-                    if i == cluster:
-                        st.markdown(f"**🏆 Type {i}**")
-                    else:
-                        st.markdown(f"Type {i}")
+                # Detailed Breakdown Section
+                st.markdown("#### 📊 Compatibility with All Teams")
 
-                    st.progress(int(p))
-                    st.caption(f"{p:.1f}% Match")
+                res_col1, res_col2 = st.columns(2)
+
+                with res_col1:
+                    st.caption("Breakdown by Team:")
+                    for i, p in enumerate(percentages):
+                        # Formatting for the winner vs others
+                        label = f"**Team {i +1} (Winner)**" if i == cluster else f"Team {i +1 }"
+                        st.write(f"{label}: {p:.1f}%")
+                        # Visual bar for each
+                        st.progress(int(p))
+
+                with res_col2:
+                    st.caption("Distribution Chart:")
+                    chart_data = pd.DataFrame({
+                        "Team": [f"Team {i +1 }" for i in range(len(percentages))],
+                        "Similarity": percentages
+                    })
+                    st.bar_chart(chart_data.set_index("Team"))
 
             # Update Leaderboard (Session State)
             new_entry = {
                 "Name": user_data["name"],
-                "Cluster": int(cluster),
+                "Cluster": int(cluster) + 1,
                 "Confidence": f"{match_score:.1f}%"
             }
             # Insert at the beginning of the list
             st.session_state.leaderboard.insert(0, new_entry)
 
-            # Rerun so the Sidebar updates immediately
-            st.rerun()
 
 # ==========================================
 # TAB 2: COMPARISON TOOL
 # ==========================================
 with tab2:
-    st.subheader("Compare Compatibility")
+    # Moved Title Inside Tab
+    st.title("Housemate Compatibility Comparator")
+
     st.write("See how similar two different profiles are based on their weighted habits.")
 
     col_a, col_b = st.columns(2)
