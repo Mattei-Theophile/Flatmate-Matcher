@@ -72,7 +72,7 @@ def get_user_inputs(prefix=""):
 
         st.markdown("**Daily Habits**")
         fruits = st.slider("Fruits & Veggies (Servings)", 0, 5, 3, key=f"{prefix}fruits")
-        steps = st.number_input("Daily Steps", 1, 10, 5, key=f"{prefix}steps")
+        steps = st.number_input("Daily Steps (in thousands)", 1, 13, 7, key=f"{prefix}steps")
         sleep = st.slider("Sleep Hours", 1, 10, 5, key=f"{prefix}sleep")
 
     with col2:
